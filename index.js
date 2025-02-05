@@ -47,6 +47,13 @@ async function run() {
         res.json(result)
     })
 
+    // Feedbacks Collection Related APIs
+    // Get APIs
+    app.get('/feedbacks', async(req,res) =>{
+      const result = await feedbackCollection.find({}).toArray();
+      res.json(result)
+  })
+
     
   } finally {
     // Ensures that the client will close when you finish/error
