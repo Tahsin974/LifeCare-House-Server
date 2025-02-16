@@ -28,6 +28,7 @@ async function run() {
     const feedbackCollection = database.collection("feedbacks");
     const availableServiceCollection =
       database.collection("available-services");
+    const myAppoinmentsCollection = database.collection("my-appointments");
 
     // Services Collection Related APIs
     // Get APIs
@@ -59,6 +60,38 @@ async function run() {
     // Get APIs
     app.get("/available-services", async (req, res) => {
       const result = await availableServiceCollection.find({}).toArray();
+      res.json(result);
+    });
+    // My Appointments Collection Related Apis
+    // Get APIs
+    app.get("/appointment-dates", async (req, res) => {
+      const userEmail = req.query.email;
+      const query = { email: userEmail };
+      const options = {
+        projection: { _id: 0, date: 1 },
+      };
+      console.log(query);
+
+      const result = await myAppoinmentsCollection
+        .find(query, options)
+        .toArray();
+      res.json(result);
+    });
+    app.get("/my-appointments", async (req, res) => {
+      const userEmail = req.query.email;
+      const appoinmentDate = req.query.date;
+
+      const query = { email: userEmail, date: appoinmentDate };
+      console.log(query);
+
+      const result = await myAppoinmentsCollection.find(query).toArray();
+      res.json(result);
+    });
+    // Post APIs
+    app.post("/my-appoinment", async (req, res) => {
+      const appoinmentInfo = req.body;
+
+      const result = await myAppoinmentsCollection.insertOne(appoinmentInfo);
       res.json(result);
     });
   } finally {
