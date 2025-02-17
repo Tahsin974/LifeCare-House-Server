@@ -39,7 +39,8 @@ async function run() {
     // Doctors Collection Related APIs
     // Get APIs
     app.get("/doctors", async (req, res) => {
-      const result = await doctorCollection.find({}).toArray();
+      const options = { sort: { name: 1 } };
+      const result = await doctorCollection.find({}, options).toArray();
       res.json(result);
     });
     app.get("/doctors/:id", async (req, res) => {
@@ -59,7 +60,10 @@ async function run() {
     // Available Service Collection Related Apis
     // Get APIs
     app.get("/available-services", async (req, res) => {
-      const result = await availableServiceCollection.find({}).toArray();
+      const options = { sort: { name: 1 } };
+      const result = await availableServiceCollection
+        .find({}, options)
+        .toArray();
       res.json(result);
     });
     // My Appointments Collection Related Apis
@@ -82,9 +86,11 @@ async function run() {
       const appoinmentDate = req.query.date;
 
       const query = { email: userEmail, date: appoinmentDate };
-      console.log(query);
+      const options = { sort: { serviceName: 1, time: 1 } };
 
-      const result = await myAppoinmentsCollection.find(query).toArray();
+      const result = await myAppoinmentsCollection
+        .find(query, options)
+        .toArray();
       res.json(result);
     });
     // Post APIs
