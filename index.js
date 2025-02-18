@@ -84,8 +84,13 @@ async function run() {
     app.get("/my-appointments", async (req, res) => {
       const userEmail = req.query.email;
       const appoinmentDate = req.query.date;
+      let query = {};
+      if (appoinmentDate) {
+        query = { email: userEmail, date: appoinmentDate };
+      } else {
+        query = { email: userEmail };
+      }
 
-      const query = { email: userEmail, date: appoinmentDate };
       const options = { sort: { serviceName: 1, time: 1 } };
 
       const result = await myAppoinmentsCollection
