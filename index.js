@@ -91,7 +91,7 @@ async function run() {
         query = { email: userEmail };
       }
 
-      const options = { sort: { serviceName: 1, time: 1 } };
+      const options = { sort: { date: 1 } };
 
       const result = await myAppoinmentsCollection
         .find(query, options)
