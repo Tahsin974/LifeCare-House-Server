@@ -1,15 +1,27 @@
+// import libraries/package
 const express = require("express");
 const cors = require("cors");
+const jwt = require("jsonwebtoken");
+const cookieParser = require("cookie-parser");
 const app = express();
 const port = process.env.PORT || 5000;
 require("dotenv").config();
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
+
+// Mongodb URI
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.3lwmdbh.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
 // middlewares
 app.use(express.json());
-app.use(cors());
+app.use(
+  cors({
+    origin: ["http://localhost:5173"],
+    credentials: true,
+  })
+);
+app.use(cookieParser());
 
+//Set  MongoDB Client
 const client = new MongoClient(uri, {
   serverApi: {
     version: ServerApiVersion.v1,
@@ -17,6 +29,22 @@ const client = new MongoClient(uri, {
     deprecationErrors: true,
   },
 });
+
+// custom middlewares
+const verifyToken = (req, res, next) => {
+  const token = req.cookies.Token;
+  if (!token) {
+    return res.status(403).send({ message: "Forbidden Access" });
+  } else {
+    return jwt.verify(token, process.env.PRIVATEKEY, function (err, decoded) {
+      if (err) {
+        return res.status(401).send({ message: "Unauthorized Access" });
+      }
+      req.user = decoded;
+      next();
+    });
+  }
+};
 
 async function run() {
   try {
@@ -29,6 +57,27 @@ async function run() {
     const availableServiceCollection =
       database.collection("available-services");
     const myAppoinmentsCollection = database.collection("my-appointments");
+
+    // JWT related APIs
+    app.post("/jwt", (req, res) => {
+      const user = req.body;
+      const token = jwt.sign(user, process.env.PRIVATEKEY, {
+        expiresIn: 60 * 60,
+      });
+
+      res
+        .cookie("Token", token, {
+          httpOnly: true,
+          secure: false,
+          sameSite: "strict",
+        })
+        .send({ message: "Success" });
+    });
+    app.post("/logout", (req, res) => {
+      res
+        .clearCookie("Token", { maxAge: 0 })
+        .send({ message: "logout success" });
+    });
 
     // Services Collection Related APIs
     // Get APIs
@@ -68,20 +117,23 @@ async function run() {
     });
     // My Appointments Collection Related Apis
     // Get APIs
-    app.get("/appointment-dates", async (req, res) => {
+    app.get("/appointment-dates", verifyToken, async (req, res) => {
       const userEmail = req.query.email;
       const query = { email: userEmail };
       const options = {
         projection: { _id: 0, date: 1 },
       };
-      console.log(query);
 
-      const result = await myAppoinmentsCollection
-        .find(query, options)
-        .toArray();
-      res.json(result);
+      if (userEmail === req.user.email) {
+        const result = await myAppoinmentsCollection
+          .find(query, options)
+          .toArray();
+        return res.json(result);
+      } else {
+        return res.status(403).send({ message: "Forbidden Access" });
+      }
     });
-    app.get("/my-appointments", async (req, res) => {
+    app.get("/my-appointments", verifyToken, async (req, res) => {
       const userEmail = req.query.email;
       const appoinmentDate = req.query.date;
       let query = {};
@@ -93,10 +145,14 @@ async function run() {
 
       const options = { sort: { date: 1 } };
 
-      const result = await myAppoinmentsCollection
-        .find(query, options)
-        .toArray();
-      res.json(result);
+      if (userEmail === req.user.email) {
+        const result = await myAppoinmentsCollection
+          .find(query, options)
+          .toArray();
+        return res.json(result);
+      } else {
+        return res.status(403).send({ message: "Forbidden Access" });
+      }
     });
     // Post APIs
     app.post("/my-appoinment", async (req, res) => {
