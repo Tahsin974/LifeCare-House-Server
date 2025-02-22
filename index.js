@@ -57,6 +57,7 @@ async function run() {
     const availableServiceCollection =
       database.collection("available-services");
     const myAppoinmentsCollection = database.collection("my-appointments");
+    const allUsersCollection = database.collection("all-users");
 
     // JWT related APIs
     app.post("/jwt", (req, res) => {
@@ -159,6 +160,68 @@ async function run() {
       const appoinmentInfo = req.body;
 
       const result = await myAppoinmentsCollection.insertOne(appoinmentInfo);
+      res.json(result);
+    });
+
+    // Admin APIs
+    // All Users Related API's
+    // GET APIs
+    app.get("/all-users", async (req, res) => {
+      const result = await allUsersCollection.find({}).toArray();
+      res.json(result);
+    });
+
+    app.get("/user/admin", verifyToken, async (req, res) => {
+      const email = req.query.email;
+      const query = { email: email };
+      const options = {
+        projection: { _id: 0, role: 1 },
+      };
+      if (email === req.user.email) {
+        const user = await allUsersCollection.findOne(query, options);
+        let admin = false;
+        if (user) {
+          admin = user?.role === "admin";
+        }
+        return res.json({ admin });
+      } else {
+        return res.status(403).send({ message: "Forbidden Access" });
+      }
+    });
+    // POST APIs
+    app.post("/all-users", async (req, res) => {
+      const userInfo = req.body;
+      const User = req.query.email;
+      const query = { email: User };
+      const existingUser = await allUsersCollection.findOne(query);
+      console.log(existingUser);
+      if (existingUser) {
+        console.log("user exist");
+        return res.send({ message: "user already exists", insertedId: null });
+      } else {
+        const result = await allUsersCollection.insertOne(userInfo);
+        return res.send(result);
+      }
+    });
+
+    // Patch APIs
+    app.patch("/make-admin/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      console.log(query);
+      const updateDoc = {
+        $set: {
+          role: "admin",
+        },
+      };
+      const result = await allUsersCollection.updateOne(query, updateDoc);
+      res.json(result);
+    });
+    // Delete APIs
+    app.delete("/delete-user/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await allUsersCollection.deleteOne(query);
       res.json(result);
     });
   } finally {
