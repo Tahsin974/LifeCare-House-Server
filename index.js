@@ -30,22 +30,6 @@ const client = new MongoClient(uri, {
   },
 });
 
-// custom middlewares
-const verifyToken = (req, res, next) => {
-  const token = req.cookies.Token;
-  if (!token) {
-    return res.status(403).send({ message: "Forbidden Access" });
-  } else {
-    return jwt.verify(token, process.env.PRIVATEKEY, function (err, decoded) {
-      if (err) {
-        return res.status(401).send({ message: "Unauthorized Access" });
-      }
-      req.user = decoded;
-      next();
-    });
-  }
-};
-
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
@@ -58,6 +42,37 @@ async function run() {
       database.collection("available-services");
     const myAppoinmentsCollection = database.collection("my-appointments");
     const allUsersCollection = database.collection("all-users");
+
+    // custom middlewares
+    const verifyToken = (req, res, next) => {
+      const token = req.cookies.Token;
+      if (!token) {
+        return res.status(403).send({ message: "Forbidden Access" });
+      } else {
+        return jwt.verify(
+          token,
+          process.env.PRIVATEKEY,
+          function (err, decoded) {
+            if (err) {
+              return res.status(401).send({ message: "Unauthorized Access" });
+            }
+            req.user = decoded;
+            next();
+          }
+        );
+      }
+    };
+
+    const verifyAdmin = async (req, res, next) => {
+      const email = req.user.email;
+      const query = { email: email };
+      const user = await allUsersCollection.findOne(query);
+      const isAdmin = user?.role === "admin";
+      if (!isAdmin) {
+        return res.status(403).send({ message: "Forbidden Access" });
+      }
+      next();
+    };
 
     // JWT related APIs
     app.post("/jwt", (req, res) => {
@@ -166,12 +181,12 @@ async function run() {
     // Admin APIs
     // All Users Related API's
     // GET APIs
-    app.get("/all-users", async (req, res) => {
+    app.get("/all-users", verifyToken, verifyAdmin, async (req, res) => {
       const result = await allUsersCollection.find({}).toArray();
       res.json(result);
     });
 
-    app.get("/user/admin", verifyToken, async (req, res) => {
+    app.get("/user/admin", verifyToken, verifyAdmin, async (req, res) => {
       const email = req.query.email;
       const query = { email: email };
       const options = {
