@@ -16,9 +16,9 @@ app.use(express.json());
 app.use(
   cors({
     origin: [
-      // "http://localhost:5173",
-      "https://tahsin-lifecare-house01.web.app",
-      "https://tahsin-lifecare-house01.firebaseapp.com",
+      "http://localhost:5173",
+      // "https://tahsin-lifecare-house01.web.app",
+      // "https://tahsin-lifecare-house01.firebaseapp.com",
     ],
     credentials: true,
   })
@@ -59,9 +59,10 @@ async function run() {
           function (err, decoded) {
             if (err) {
               return res.status(401).send({ message: "Unauthorized Access" });
+            } else {
+              req.user = decoded;
+              return next();
             }
-            req.user = decoded;
-            next();
           }
         );
       }
@@ -72,6 +73,7 @@ async function run() {
       const query = { email: email };
       const user = await allUsersCollection.findOne(query);
       const isAdmin = user?.role === "admin";
+      console.log(!isAdmin);
       if (!isAdmin) {
         return res.status(403).send({ message: "Forbidden Access" });
       }
@@ -88,8 +90,8 @@ async function run() {
       res
         .cookie("Token", token, {
           httpOnly: true,
-          secure: true,
-          sameSite: "none",
+          secure: false,
+          sameSite: "lax",
         })
         .send({ message: "Success" });
     });
@@ -190,14 +192,12 @@ async function run() {
       res.json(result);
     });
 
-    app.get("/user/admin", verifyToken, verifyAdmin, async (req, res) => {
-      const email = req.query.email;
+    app.get("/user/admin/:email", verifyToken, async (req, res) => {
+      const email = req.params.email;
+
       const query = { email: email };
-      const options = {
-        projection: { _id: 0, role: 1 },
-      };
       if (email === req.user.email) {
-        const user = await allUsersCollection.findOne(query, options);
+        const user = await allUsersCollection.findOne(query);
         let admin = false;
         if (user) {
           admin = user?.role === "admin";
@@ -213,9 +213,7 @@ async function run() {
       const User = req.query.email;
       const query = { email: User };
       const existingUser = await allUsersCollection.findOne(query);
-      console.log(existingUser);
       if (existingUser) {
-        console.log("user exist");
         return res.send({ message: "user already exists", insertedId: null });
       } else {
         const result = await allUsersCollection.insertOne(userInfo);
