@@ -188,7 +188,7 @@ async function run() {
     // All Users Related API's
     // GET APIs
     app.get("/all-users", verifyToken, verifyAdmin, async (req, res) => {
-      const options = { sort: { role: 1 } };
+      const options = { sort: { role: -1 } };
       const result = await allUsersCollection.find({}, options).toArray();
       res.json(result);
     });
