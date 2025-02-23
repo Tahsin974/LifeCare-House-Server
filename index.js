@@ -16,9 +16,9 @@ app.use(express.json());
 app.use(
   cors({
     origin: [
-      "http://localhost:5173",
-      // "https://tahsin-lifecare-house01.web.app",
-      // "https://tahsin-lifecare-house01.firebaseapp.com",
+      // "http://localhost:5173",
+      "https://tahsin-lifecare-house01.web.app",
+      "https://tahsin-lifecare-house01.firebaseapp.com",
     ],
     credentials: true,
   })
@@ -90,7 +90,7 @@ async function run() {
       res
         .cookie("Token", token, {
           httpOnly: true,
-          secure: false,
+          secure: true,
           sameSite: "lax",
         })
         .send({ message: "Success" });
