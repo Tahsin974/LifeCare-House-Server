@@ -7,6 +7,7 @@ const app = express();
 const port = process.env.PORT || 5000;
 require("dotenv").config();
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
+const stripe = require("stripe")(`${process.env.PAYMENT_GATEWAY_SK}`);
 
 // Mongodb URI
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.3lwmdbh.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
@@ -16,9 +17,9 @@ app.use(express.json());
 app.use(
   cors({
     origin: [
-      // "http://localhost:5173",
-      "https://tahsin-lifecare-house01.web.app",
-      "https://tahsin-lifecare-house01.firebaseapp.com",
+      "http://localhost:5173",
+      // "https://tahsin-lifecare-house01.web.app",
+      // "https://tahsin-lifecare-house01.firebaseapp.com",
     ],
     credentials: true,
   })
@@ -46,6 +47,7 @@ async function run() {
       database.collection("available-services");
     const myAppoinmentsCollection = database.collection("my-appointments");
     const allUsersCollection = database.collection("all-users");
+    const paymentCollection = database.collection("payment-history");
 
     // custom middlewares
     const verifyToken = (req, res, next) => {
@@ -241,6 +243,48 @@ async function run() {
       const query = { _id: new ObjectId(id) };
       const result = await allUsersCollection.deleteOne(query);
       res.json(result);
+    });
+
+    // Payment Related APIs
+    // Create Payment Intent
+    // Post APIs
+    app.post("/create-payment-intent", async (req, res) => {
+      const { price } = req.body;
+      const amount = parseInt(price * 100);
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: amount,
+        currency: "usd",
+        payment_method_types: ["card"],
+      });
+      res.send({
+        clientSecret: paymentIntent.client_secret,
+      });
+    });
+
+    app.post("/payment", async (req, res) => {
+      const paymentInfo = req.body;
+      const paymentResult = await paymentCollection.insertOne(paymentInfo);
+
+      const query = { _id: new ObjectId(paymentInfo.appointmentId) };
+
+      const deleteAppointment = await myAppoinmentsCollection.deleteOne(query);
+      console.log(deleteAppointment);
+
+      res.send({ paymentResult, deleteAppointment });
+    });
+    // GET APIs
+    app.get("/my-history", verifyToken, async (req, res) => {
+      const userEmail = req.query.email;
+
+      const query = { email: userEmail };
+      console.log(query);
+      if (userEmail === req.user.email) {
+        const historyResult = await paymentCollection.find(query).toArray();
+        console.log(historyResult);
+        res.json(historyResult);
+      } else {
+        return res.status(403).send({ message: "Forbidden Access" });
+      }
     });
   } finally {
     // Ensures that the client will close when you finish/error
