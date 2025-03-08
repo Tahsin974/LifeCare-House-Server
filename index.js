@@ -17,9 +17,9 @@ app.use(express.json());
 app.use(
   cors({
     origin: [
-      "http://localhost:5173",
-      // "https://tahsin-lifecare-house01.web.app",
-      // "https://tahsin-lifecare-house01.firebaseapp.com",
+      // "http://localhost:5173",
+      "https://tahsin-lifecare-house01.web.app",
+      "https://tahsin-lifecare-house01.firebaseapp.com",
     ],
     credentials: true,
   })
@@ -238,11 +238,16 @@ async function run() {
       res.json(result);
     });
     // Delete APIs
-    app.delete("/delete-user/:id", async (req, res) => {
-      const id = req.params.id;
+    app.delete("/delete-user", async (req, res) => {
+      const id = req.query.id;
+      const userEmail = req.query.email;
       const query = { _id: new ObjectId(id) };
+      const filter = { email: userEmail };
       const result = await allUsersCollection.deleteOne(query);
-      res.json(result);
+      const deleteAppointment = await myAppoinmentsCollection.deleteMany(
+        filter
+      );
+      res.json({ result, deleteAppointment });
     });
 
     // Payment Related APIs
@@ -263,14 +268,21 @@ async function run() {
 
     app.post("/payment", async (req, res) => {
       const paymentInfo = req.body;
+      console.log(paymentInfo);
       const paymentResult = await paymentCollection.insertOne(paymentInfo);
 
-      const query = { _id: new ObjectId(paymentInfo.appointmentId) };
-
-      const deleteAppointment = await myAppoinmentsCollection.deleteOne(query);
-      console.log(deleteAppointment);
-
-      res.send({ paymentResult, deleteAppointment });
+      const filter = { _id: new ObjectId(paymentInfo.appointmentId) };
+      const updateDoc = {
+        $set: {
+          status: "paid",
+          transactionID: paymentInfo.transactionId,
+        },
+      };
+      const updateResult = await myAppoinmentsCollection.updateOne(
+        filter,
+        updateDoc
+      );
+      res.send({ paymentResult, updateResult });
     });
     // GET APIs
     app.get("/my-history", verifyToken, async (req, res) => {
@@ -285,6 +297,83 @@ async function run() {
       } else {
         return res.status(403).send({ message: "Forbidden Access" });
       }
+    });
+
+    app.get("/admin-stats", verifyToken, verifyAdmin, async (req, res) => {
+      const userEmail = req.query.email;
+      if (userEmail === req.user.email) {
+        // doctors count
+        const doctors = await doctorCollection.estimatedDocumentCount();
+        // patients count
+
+        const patients = await allUsersCollection.estimatedDocumentCount();
+        // appointments
+
+        const appointments =
+          await myAppoinmentsCollection.estimatedDocumentCount();
+        res.json({
+          doctors: doctors,
+          patients: patients,
+          appointments: appointments,
+        });
+      } else {
+        return res.status(403).send({ message: "Forbidden Access" });
+      }
+    });
+
+    app.get("/patients-stats", verifyToken, verifyAdmin, async (req, res) => {
+      const userEmail = req.query.email;
+
+      if (userEmail !== req.user.email) {
+        return res.status(403).send({ message: "Forbidden Access" });
+      }
+
+      const pipeLines = [
+        {
+          $group: {
+            _id: "$date",
+            patients: { $sum: 1 },
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+            year: { $toInt: "$_id" },
+            patients: 1,
+            // densify always works with numeric data not string that's why i convert year into Integer
+          },
+        },
+        {
+          $sort: { year: 1 },
+        },
+        {
+          $densify: {
+            field: "year",
+            range: { step: 1, bounds: "full" },
+          },
+        },
+        {
+          $set: {
+            patients: { $ifNull: ["$patients", 0] },
+          },
+        },
+        // {
+        //   $densify: {
+        //     field: "year",
+        //     range: { step: 1, bounds: "full" },
+        //   },
+        // },
+        // {
+        //   $set: {
+        //     patients: { $ifNull: ["$patients", 0] }, // Set missing 'patients' to 0
+        //   },
+        // },
+      ];
+      const patientStats = await allUsersCollection
+        .aggregate(pipeLines)
+        .toArray();
+      console.log(patientStats);
+      return res.json(patientStats);
     });
   } finally {
     // Ensures that the client will close when you finish/error
